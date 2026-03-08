@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 type TestRequest struct {
@@ -11,6 +14,12 @@ type TestRequest struct {
 	Requests    int    `json:"requests"`
 	Concurrency int    `json:"concurrency"`
 }
+
+var ctx = context.Background()
+
+var rdb = redis.NewClient(&redis.Options{
+	Addr: "localhost:6379",
+})
 
 func main() {
 
@@ -33,8 +42,11 @@ func startTest(c *gin.Context) {
 		return
 	}
 
+	jobData, _ := json.Marshal(req)
+
+	rdb.RPush(ctx, "loadtest_jobs", jobData)
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Test received",
-		"url":     req.URL,
+		"message": "Test job queued",
 	})
 }
