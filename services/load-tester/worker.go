@@ -27,6 +27,8 @@ func main() {
 
 	fmt.Println("Worker started")
 
+	initDB()
+
 	for {
 
 		result, err := rdb.BLPop(ctx, 0*time.Second, "loadtest_jobs").Result()
@@ -74,7 +76,7 @@ func runLoadTest(job TestRequest) {
 
 	totalTime := time.Since(startTime)
 
-	calculateMetrics(durations, totalTime)
+	calculateMetrics(job.URL, durations, totalTime)
 }
 
 func worker(url string, jobs <-chan int, results chan<- time.Duration) {
@@ -98,7 +100,7 @@ func worker(url string, jobs <-chan int, results chan<- time.Duration) {
 	}
 }
 
-func calculateMetrics(durations []time.Duration, totalTime time.Duration) {
+func calculateMetrics(url string, durations []time.Duration, totalTime time.Duration) {
 
 	var totalLatency time.Duration
 	var successRequests int
@@ -131,4 +133,22 @@ func calculateMetrics(durations []time.Duration, totalTime time.Duration) {
 	fmt.Println("P95 Latency:", p95Latency)
 	fmt.Println("Requests/sec:", rps)
 	fmt.Println("--------------------------------\n")
+	saveResults(url, len(durations), avgLatency.Seconds(), p95Latency.Seconds(), rps)
+}
+
+func saveResults(url string, totalRequests int, avg float64, p95 float64, rps float64) {
+
+	query := `
+	INSERT INTO test_results (url, total_requests, avg_latency, p95_latency, rps)
+	VALUES ($1,$2,$3,$4,$5)
+	`
+
+	_, err := db.Exec(query, url, totalRequests, avg, p95, rps)
+
+	if err != nil {
+		fmt.Println("DB error:", err)
+		return
+	}
+
+	fmt.Println("Results saved to database")
 }
