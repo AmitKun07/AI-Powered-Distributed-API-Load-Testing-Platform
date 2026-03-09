@@ -9,7 +9,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/segmentio/kafka-go"
+)
+
+var requestsTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "gateway_requests_total",
+		Help: "Total number of API requests",
+	},
 )
 
 var writer = kafka.NewWriter(kafka.WriterConfig{
@@ -49,16 +58,18 @@ func initDB() {
 func main() {
 
 	router := gin.Default()
+	prometheus.MustRegister(requestsTotal)
 
 	initDB()
 
 	router.POST("/test", startTest)
 	router.GET("/results", getResults)
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	router.Run(":8080")
 }
 
 func startTest(c *gin.Context) {
-
+	requestsTotal.Inc()
 	var req TestRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
