@@ -11,7 +11,7 @@ var db *sql.DB
 
 func initDB() {
 
-	connStr := "host=localhost port=5432 user=admin password=admin dbname=loadtest sslmode=disable"
+	connStr := "host=postgres port=5432 user=admin password=admin dbname=loadtest sslmode=disable"
 
 	var err error
 
