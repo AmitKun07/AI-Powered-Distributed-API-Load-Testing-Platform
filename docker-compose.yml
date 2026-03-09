@@ -1,0 +1,30 @@
+services:
+
+  redis:
+    image: redis
+    container_name: redis_container
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: loadtest
+    ports:
+      - "5432:5432"
+
+  worker:
+    build: ./services/load-tester
+    depends_on:
+      - redis
+      - postgres
+
+  gateway:
+    build: ./services/api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
