@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 )
 
 type TestRequest struct {
@@ -17,29 +17,48 @@ type TestRequest struct {
 	Concurrency int
 }
 
+type Metric struct {
+	URL           string  `json:"url"`
+	TotalRequests int     `json:"total_requests"`
+	AvgLatency    float64 `json:"avg_latency"`
+	P95Latency    float64 `json:"p95_latency"`
+	RPS           float64 `json:"rps"`
+}
+
 var ctx = context.Background()
 
-var rdb = redis.NewClient(&redis.Options{
-	Addr: "redis:6379",
+// Kafka consumer for load test jobs
+var reader = kafka.NewReader(kafka.ReaderConfig{
+	Brokers: []string{"kafka:9092"},
+	Topic:   "loadtest-jobs",
+	GroupID: "workers",
+})
+
+// Kafka producer for metrics
+var metricsWriter = kafka.NewWriter(kafka.WriterConfig{
+	Brokers: []string{"kafka:9092"},
+	Topic:   "metrics",
 })
 
 func main() {
 
 	fmt.Println("Worker started")
 
-	initDB()
-
 	for {
 
-		result, err := rdb.BLPop(ctx, 0*time.Second, "loadtest_jobs").Result()
-
+		msg, err := reader.ReadMessage(ctx)
 		if err != nil {
+			fmt.Println("Kafka read error:", err)
 			continue
 		}
 
 		var job TestRequest
 
-		json.Unmarshal([]byte(result[1]), &job)
+		err = json.Unmarshal(msg.Value, &job)
+		if err != nil {
+			fmt.Println("JSON error:", err)
+			continue
+		}
 
 		runLoadTest(job)
 	}
@@ -54,19 +73,17 @@ func runLoadTest(job TestRequest) {
 
 	startTime := time.Now()
 
-	// Start workers
+	// Start goroutines
 	for w := 0; w < job.Concurrency; w++ {
 		go worker(job.URL, jobs, results)
 	}
 
-	// Send jobs
 	for i := 0; i < job.Requests; i++ {
 		jobs <- i
 	}
 
 	close(jobs)
 
-	// Collect results
 	var durations []time.Duration
 
 	for i := 0; i < job.Requests; i++ {
@@ -115,10 +132,8 @@ func calculateMetrics(url string, durations []time.Duration, totalTime time.Dura
 
 	avgLatency := totalLatency / time.Duration(successRequests)
 
-	// Calculate requests per second
 	rps := float64(len(durations)) / totalTime.Seconds()
 
-	// Sort durations for percentile
 	sort.Slice(durations, func(i, j int) bool {
 		return durations[i] < durations[j]
 	})
@@ -133,22 +148,30 @@ func calculateMetrics(url string, durations []time.Duration, totalTime time.Dura
 	fmt.Println("P95 Latency:", p95Latency)
 	fmt.Println("Requests/sec:", rps)
 	fmt.Println("--------------------------------\n")
-	saveResults(url, len(durations), avgLatency.Seconds(), p95Latency.Seconds(), rps)
+
+	sendMetrics(url, len(durations), avgLatency.Seconds(), p95Latency.Seconds(), rps)
 }
 
-func saveResults(url string, totalRequests int, avg float64, p95 float64, rps float64) {
+func sendMetrics(url string, totalRequests int, avg float64, p95 float64, rps float64) {
 
-	query := `
-	INSERT INTO test_results (url, total_requests, avg_latency, p95_latency, rps)
-	VALUES ($1,$2,$3,$4,$5)
-	`
+	metric := Metric{
+		URL:           url,
+		TotalRequests: totalRequests,
+		AvgLatency:    avg,
+		P95Latency:    p95,
+		RPS:           rps,
+	}
 
-	_, err := db.Exec(query, url, totalRequests, avg, p95, rps)
+	data, _ := json.Marshal(metric)
+
+	err := metricsWriter.WriteMessages(ctx, kafka.Message{
+		Value: data,
+	})
 
 	if err != nil {
-		fmt.Println("DB error:", err)
+		fmt.Println("Kafka metrics send error:", err)
 		return
 	}
 
-	fmt.Println("Results saved to database")
+	fmt.Println("Metrics sent to Kafka")
 }
