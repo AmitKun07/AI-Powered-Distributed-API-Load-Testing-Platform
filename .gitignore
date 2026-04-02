@@ -1,0 +1,14 @@
+# Node
+node_modules/
+.env
+
+# Go
+bin/
+*.exe
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

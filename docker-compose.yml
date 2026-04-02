@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
 
   redis:
@@ -23,17 +25,25 @@ services:
     depends_on:
       - redis
       - postgres
+      - kafka
 
   worker:
     build: ./services/load-tester
     depends_on:
-      - redis
+      - kafka
       - postgres
 
   metrics-processor:
     build: ./services/metrics-processor
     depends_on:
-      - redis
+      - kafka
+      - postgres
+
+  ai-analyzer:
+    build: ./services/ai-analyzer
+    ports:
+      - "5000:5000"
+    depends_on:
       - postgres
 
   zookeeper:
@@ -57,7 +67,6 @@ services:
 
   prometheus:
     image: prom/prometheus
-    container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -65,6 +74,5 @@ services:
 
   grafana:
     image: grafana/grafana
-    container_name: grafana
     ports:
       - "3000:3000"
