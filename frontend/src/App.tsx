@@ -1,11 +1,14 @@
 import { useState } from "react"
-import { startTest, getResults } from "./api"
+import { startTest, getResults, analyzeResult } from "./api"
 
 function App() {
   const [url, setUrl] = useState("")
   const [requests, setRequests] = useState(100)
   const [concurrency, setConcurrency] = useState(10)
   const [results, setResults] = useState<any[]>([])
+
+  const [analysis, setAnalysis] = useState<string | null>(null)
+  const [loadingId, setLoadingId] = useState<number | null>(null)
 
   const handleStart = async () => {
     await startTest({ url, requests, concurrency })
@@ -15,6 +18,19 @@ function App() {
   const handleFetch = async () => {
     const data = await getResults()
     setResults(data)
+  }
+
+  const handleAnalyze = async (id: number) => {
+    setLoadingId(id)
+
+    try {
+      const data = await analyzeResult(id)
+      setAnalysis(data.analysis || JSON.stringify(data))
+    } catch (err) {
+      setAnalysis("Error fetching analysis")
+    }
+
+    setLoadingId(null)
   }
 
   return (
@@ -55,6 +71,7 @@ function App() {
             <th>Avg Latency</th>
             <th>P95</th>
             <th>RPS</th>
+            <th>AI</th>
           </tr>
         </thead>
 
@@ -67,10 +84,24 @@ function App() {
               <td>{r.avg_latency}</td>
               <td>{r.p95_latency}</td>
               <td>{r.rps}</td>
+
+              <td>
+                <button onClick={() => handleAnalyze(r.id)}>
+                  {loadingId === r.id ? "Analyzing..." : "Analyze"}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/* AI Result */}
+      {analysis && (
+        <div style={{ marginTop: "20px", padding: "10px", border: "1px solid black" }}>
+          <h3>🧠 AI Insight</h3>
+          <p>{analysis}</p>
+        </div>
+      )}
     </div>
   )
 }
