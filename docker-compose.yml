@@ -32,6 +32,8 @@ services:
     depends_on:
       - kafka
       - postgres
+    environment:
+      DB_URL: host=postgres port=5432 user=admin password=admin dbname=loadtest sslmode=disable
 
   metrics-processor:
     build: ./services/metrics-processor
