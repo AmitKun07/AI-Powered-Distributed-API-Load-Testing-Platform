@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	// "net/http"
-
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/cors"
 	"github.com/segmentio/kafka-go"
+	"net/http"
 )
 
 var requestsTotal = prometheus.NewCounter(
@@ -56,16 +56,27 @@ func initDB() {
 }
 
 func main() {
-
 	router := gin.Default()
-	prometheus.MustRegister(requestsTotal)
 
+	prometheus.MustRegister(requestsTotal)
 	initDB()
 
 	router.POST("/test", startTest)
 	router.GET("/results", getResults)
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	router.Run(":8080")
+
+	// ✅ Wrap Gin router with CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type"},
+		AllowCredentials: true,
+	})
+
+	handler := c.Handler(router)
+
+	// ✅ Use http.ListenAndServe instead of router.Run
+	http.ListenAndServe(":8080", handler)
 }
 
 func startTest(c *gin.Context) {
