@@ -1,7 +1,7 @@
 import MainLayout from "@/components/layout/MainLayout"
-import StatsCard from "@/features/dashboard/components/StatsCard"
+import StatsCard from "@/features/dashboard/components/StatsCards"
 import ApiPanel from "@/features/dashboard/components/ApiPanel"
-import RecentTabResults from "@/features/dashboard/components/RecentTabResults"
+import RecentTestResults from "@/features/dashboard/components/RecentTableResult"
 import Sidebar from "@/components/layout/Sidebar"
 import { useEffect, useState } from "react"
 import { getResults } from "@/services/api"
@@ -30,7 +30,7 @@ export default function Dashboard() {
         }}
       >
         <ApiPanel onTestComplete={fetchResults}/>
-        <RecentTabResults results={results}/>
+        <RecentTestResults results={results}/>
       </div>
     </MainLayout>
   )
